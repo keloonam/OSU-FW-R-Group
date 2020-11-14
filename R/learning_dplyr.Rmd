@@ -1,0 +1,209 @@
+---
+title: "dplyr & pipes"
+author: "Ellen Dymit"
+date: "11/4/2020"
+output: pdf_document
+---
+
+## dplyr
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+familiarizing yourself with dplyr will change your life! 
+
+the dplyr package exists to make tabular data manipulation cleaner and easier
+
+the data we're working with today is in the tidyverse package. 
+
+```{r}
+starwars
+
+glimpse(starwars)
+
+#starwars <- dplyr::tbl_df(starwars)
+```
+
+
+dplyr is very simple. the package is built around 5 verbs. 
+
+SELECT
+FILTER
+ARRANGE
+MUTATE
+SUMMARISE
+
+These verbs make up the majority of the data manipulation you tend to do. 
+The first element in all 5 functions is your dataframe.* (Note this, it'll be important later)
+
+### select
+Select certain columns of data.
+
+```{r}
+
+select(starwars, name, species, homeworld) # note that you can reorder the columns here
+
+select(starwars, name, hair_color:birth_year) # specify a "run" of columns.
+
+select(starwars, -vehicles, -starships) # exclude columns
+
+select(starwars, name, contains("color"))
+select(starwars, name, ends_with("color")) # starts_with
+
+select(starwars, 1:5)
+
+```
+
+### filter
+Subset by rows
+
+```{r}
+
+filter(starwars, height > 100)
+filter(starwars, mass < 40)[ , c(1:3, 11)] # you can use any valid logical statement here
+
+filter(starwars, !is.na(hair_color))
+
+filter(starwars, species == "Droid")[ , 1:3]
+filter(starwars, species == "Human" & sex == "female")[ , c(1, 4:6)]
+
+```
+
+### arrange
+Order your rows
+
+```{r}
+
+arrange(starwars, name)[ , c(1, 4:6)] # default is alphabetical
+
+arrange(starwars, desc(height))[ , c(1, 2, 10:11)]
+
+arrange(starwars, species, name)[ , c(1, 2, 10:11)]
+
+```
+
+### mutate
+Add new columns
+
+```{r}
+
+Loblolly
+mutate(Loblolly, height_feet = height / 3.281)
+mutate(Loblolly, height_rank = height / mean(height), height_rank = round(height_rank, 3))
+
+iris
+mutate(iris, Sepal.Size = Sepal.Length * Sepal.Width)
+mutate(iris,
+       Sepal.Size = Sepal.Length * Sepal.Width,
+       Petal.Size = Petal.Length * Petal.Width
+       )[ , 5:7]
+
+```
+
+### summarize
+calculate summary statistics
+
+```{r}
+
+Loblolly
+summarize(Loblolly, mean_height = mean(height))
+
+# summarize is more useful when combined with group_by
+
+head(summarize(group_by(Loblolly, age),
+  mean_height = mean(height)))
+
+```
+
+
+## pipes
+
+this is the pipe operator in R: %>%
+
+(most important reason to use pipes is that its just fun to type fast while holding down shift key)
+
+it lives in the 'magrittr' package, which comes in the tidyverse
+
+pipes take the output of the first function and feet it into the subsequent one
+think of it as the word "then"
+
+pipes are how you design your desired data frame without creating so many intermediate objects 
+
+the pipe operator truly shines when you start chaining several dplyr functions with it
+
+```{r, error=TRUE}
+
+x <- rnorm(10)
+
+x %>% mean 
+mean(x)
+
+starwars
+
+starwars %>%
+  filter(sex == "female") %>%
+  select(name, species, homeworld)
+
+# can anyone tell me why this returns an error?
+starwars %>%
+  select(name, species, homeworld) %>%
+  filter(sex == "female")
+
+# Q: which species is the strongest / weakest
+starwars %>%
+  filter(species != "Droid") %>%
+  mutate(power = mass * height) %>%
+  group_by(species) %>%
+  summarize(avg_strength = mean(power)) %>%
+  filter(!is.na(avg_strength)) %>%
+  arrange(desc(avg_strength)) %>%
+  mutate(rank = row_number()) %>%
+  select(rank, species)
+  
+```
+
+
+## piping into ggplot
+
+
+```{r}
+
+iris.plot <- iris %>% # variable name and assignment on the same line is best style, imo
+  mutate(Sepal.Size = Sepal.Length * Sepal.Width,
+       Petal.Size = Petal.Length * Petal.Width) %>%
+  ggplot(., aes(Petal.Size, Sepal.Size, color = Species)) +
+  geom_point()
+iris.plot
+
+```
+
+## reshaping data
+
+```{r}
+
+# gather
+starwars1 <- starwars %>%
+  gather(key = "feature", value = "color", hair_color, skin_color, eye_color # or 4:6
+         ) %>%
+  select(name, feature, color) %>%
+  filter(!is.na(color))
+starwars1
+
+# spread
+starwars1 %>%
+  spread(key = "feature", value = "color")
+
+# unite
+starwars %>%
+  filter(species != "Droid") %>%
+  unite("identity", species, sex, sep = " ") %>% # default separator is _
+  select(name, identity)
+
+# separate
+starwars %>%
+  filter(species != "Droid") %>%
+  separate(name, c("first_name", "last_name"), sep = " ")
+
+```
